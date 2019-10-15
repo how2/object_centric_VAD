@@ -1,41 +1,58 @@
 import numpy as np
 import scipy.io as scio
-import  sys
-sys.path.append('../')
+import sys
 import os
 import argparse
 import pickle
 from sklearn import metrics
 import json
 from utils.util import score_smoothing
-DATA_DIR='/data/jiachang/'
+
+
+sys.path.append('../')
+
+DATA_DIR = '/data/jiachang/'
 if not os.path.exists(DATA_DIR):
-    DATA_DIR='/data0/jiachang/'
+    DATA_DIR = '/data0/jiachang/'
     if not os.path.exists(DATA_DIR):
-        DATA_DIR='/home/manning/'
+        DATA_DIR = '/home/manning/'
     if not os.path.exists(DATA_DIR):
-        DATA_DIR='../anotations/'
+        DATA_DIR = '../anotations/'
 
 # normalize scores in each sub video
 NORMALIZE = True
 
-# number of history frames, since in prediction based method, the first 4 frames can not be predicted, so that
+# number of history frames, since in prediction based method,
+# the first 4 frames can not be predicted, so that
 # the first 4frames are undecidable, we just ignore the first 4 frames
 DECIDABLE_IDX = 2
 
 
 def parser_args():
-    parser = argparse.ArgumentParser(description='evaluating the model, computing the roc/auc.')
+    parser = argparse.ArgumentParser(
+        description='evaluating the model, computing the roc/auc.')
 
-    parser.add_argument('-f', '--file', type=str, help='the path of loss file.')
-    parser.add_argument('-t', '--type', type=str, default='compute_auc',
-                        help='the type of evaluation, choosing type is: plot_roc, compute_auc, '
-                             'test_func\n, the default type is compute_auc')
+    parser.add_argument('-f',
+                        '--file',
+                        type=str,
+                        help='the path of loss file.')
+    parser.add_argument(
+        '-t',
+        '--type',
+        type=str,
+        default='compute_auc',
+        help='the type of evaluation, choosing type is: plot_roc, compute_auc,'
+        'test_func\n, the default type is compute_auc')
     return parser.parse_args()
 
 
 class RecordResult(object):
-    def __init__(self, fpr=None, tpr=None, auc=-np.inf, dataset=None, loss_file=None):
+    def __init__(self,
+                 fpr=None,
+                 tpr=None,
+                 auc=-np.inf,
+                 dataset=None,
+                 loss_file=None):
         self.fpr = fpr
         self.tpr = tpr
         self.auc = auc
@@ -49,7 +66,8 @@ class RecordResult(object):
         return self.auc > other.auc
 
     def __str__(self):
-        return 'dataset = {}, loss file = {}, auc = {}'.format(self.dataset, self.loss_file, self.auc)
+        return 'dataset = {}, loss file = {}, auc = {}'.format(
+            self.dataset, self.loss_file, self.auc)
 
 
 class GroundTruthLoader(object):
@@ -60,7 +78,8 @@ class GroundTruthLoader(object):
     ENTRANCE = 'enter'
     EXIT = 'exit'
     SHANGHAITECH = 'shanghaitech'
-    SHANGHAITECH_LABEL_PATH = os.path.join(DATA_DIR, 'shanghaitech/testing/test_frame_mask')
+    SHANGHAITECH_LABEL_PATH = os.path.join(
+        DATA_DIR, 'shanghaitech/testing/test_frame_mask')
     TOY_DATA = 'toydata'
     TOY_DATA_LABEL_PATH = os.path.join(DATA_DIR, TOY_DATA, 'toydata.json')
 
@@ -82,7 +101,8 @@ class GroundTruthLoader(object):
 
     def __init__(self, mapping_json=None):
         """
-        Initial a ground truth loader, which loads the ground truth with given dataset name.
+        Initial a ground truth loader, which loads 
+        the ground truth with given dataset name.
 
         :param mapping_json: the mapping from dataset name to the path of ground truth.
         """
@@ -119,7 +139,9 @@ class GroundTruthLoader(object):
         abnormal_events = scio.loadmat(mat_file, squeeze_me=True)['gt']
 
         if abnormal_events.ndim == 2:
-            abnormal_events = abnormal_events.reshape(-1, abnormal_events.shape[0], abnormal_events.shape[1])
+            abnormal_events = abnormal_events.reshape(-1,
+                                                      abnormal_events.shape[0],
+                                                      abnormal_events.shape[1])
 
         num_video = abnormal_events.shape[0]
         dataset_video_folder = GroundTruthLoader.NAME_FRAMES_MAPPING[dataset]
@@ -132,8 +154,10 @@ class GroundTruthLoader(object):
         # get the total frames of sub video
         def get_video_length(sub_video_number):
             # video_name = video_name_template.format(sub_video_number)
-            video_name = os.path.join(dataset_video_folder, video_list[sub_video_number])
-            assert os.path.isdir(video_name), '{} is not directory!'.format(video_name)
+            video_name = os.path.join(dataset_video_folder,
+                                      video_list[sub_video_number])
+            assert os.path.isdir(video_name), '{} is not directory!'.format(
+                video_name)
 
             length = len(os.listdir(video_name))
 
@@ -144,10 +168,11 @@ class GroundTruthLoader(object):
         for i in range(num_video):
             length = get_video_length(i)
 
-            sub_video_gt = np.zeros((length,), dtype=np.int8)
+            sub_video_gt = np.zeros((length, ), dtype=np.int8)
             sub_abnormal_events = abnormal_events[i]
             if sub_abnormal_events.ndim == 1:
-                sub_abnormal_events = sub_abnormal_events.reshape((sub_abnormal_events.shape[0], -1))
+                sub_abnormal_events = sub_abnormal_events.reshape(
+                    (sub_abnormal_events.shape[0], -1))
 
             _, num_abnormal = sub_abnormal_events.shape
 
@@ -156,7 +181,7 @@ class GroundTruthLoader(object):
                 start = sub_abnormal_events[0, j] - 1
                 end = sub_abnormal_events[1, j]
 
-                sub_video_gt[start: end] = 1
+                sub_video_gt[start:end] = 1
 
             gt.append(sub_video_gt)
 
@@ -170,7 +195,10 @@ class GroundTruthLoader(object):
         gt = []
         for video in video_path_list:
             # print(os.path.join(GroundTruthLoader.SHANGHAITECH_LABEL_PATH, video))
-            gt.append(np.load(os.path.join(GroundTruthLoader.SHANGHAITECH_LABEL_PATH, video)))
+            gt.append(
+                np.load(
+                    os.path.join(GroundTruthLoader.SHANGHAITECH_LABEL_PATH,
+                                 video)))
 
         return gt
 
@@ -182,13 +210,13 @@ class GroundTruthLoader(object):
         gt = []
         for video, video_info in gt_dict.items():
             length = video_info['length']
-            video_gt = np.zeros((length,), dtype=np.uint8)
+            video_gt = np.zeros((length, ), dtype=np.uint8)
             sub_gt = np.array(np.matrix(video_info['gt']))
 
             for anomaly in sub_gt:
                 start = anomaly[0]
                 end = anomaly[1] + 1
-                video_gt[start: end] = 1
+                video_gt[start:end] = 1
             gt.append(video_gt)
         return gt
 
@@ -219,7 +247,8 @@ class GroundTruthLoader(object):
         assert len(pixel_video_ids) == len(pixel_mask_file_list)
 
         for i in range(len(pixel_mask_file_list)):
-            pixel_mask_file_list[i] = os.path.join(pixel_mask_folder, pixel_mask_file_list[i])
+            pixel_mask_file_list[i] = os.path.join(pixel_mask_folder,
+                                                   pixel_mask_file_list[i])
 
         return pixel_mask_file_list, pixel_video_ids
 
@@ -308,7 +337,7 @@ def load_psnr(loss_file):
     return psnrs
 
 
-def get_scores_labels(loss_file,reverse,smoothing):
+def get_scores_labels(loss_file, reverse, smoothing):
     # the name of dataset, loss, and ground truth
     dataset, psnr_records, gt = load_psnr_gt(loss_file=loss_file)
 
@@ -322,29 +351,37 @@ def get_scores_labels(loss_file,reverse,smoothing):
         distance = psnr_records[i]
 
         if NORMALIZE:
-            distance = (distance - distance.min()) / (distance.max() - distance.min() + 1e-8)
+            distance = (distance - distance.min()) / (distance.max() -
+                                                      distance.min() + 1e-8)
             #distance -= distance.min()  # distances = (distance - min) / (max - min)
             #distance /= distance.max()
             if reverse:
                 distance = 1 - distance
         if smoothing:
             distance = score_smoothing(distance)
-        scores = np.concatenate((scores[:], distance[DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
-        labels = np.concatenate((labels[:], gt[i][DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
+        scores = np.concatenate(
+            (scores[:], distance[DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
+        labels = np.concatenate(
+            (labels[:], gt[i][DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
     return dataset, scores, labels
 
 
-def precision_recall_auc(loss_file,reverse,smoothing):
+def precision_recall_auc(loss_file, reverse, smoothing):
     if not os.path.isdir(loss_file):
         loss_file_list = [loss_file]
     else:
         loss_file_list = os.listdir(loss_file)
-        loss_file_list = [os.path.join(loss_file, sub_loss_file) for sub_loss_file in loss_file_list]
+        loss_file_list = [
+            os.path.join(loss_file, sub_loss_file)
+            for sub_loss_file in loss_file_list
+        ]
 
     optimal_results = RecordResult()
     for sub_loss_file in loss_file_list:
-        dataset, scores, labels = get_scores_labels(sub_loss_file,reverse,smoothing)
-        precision, recall, thresholds = metrics.precision_recall_curve(labels, scores, pos_label=0)
+        dataset, scores, labels = get_scores_labels(sub_loss_file, reverse,
+                                                    smoothing)
+        precision, recall, thresholds = metrics.precision_recall_curve(
+            labels, scores, pos_label=0)
         auc = metrics.auc(recall, precision)
 
         results = RecordResult(recall, precision, auc, dataset, sub_loss_file)
@@ -364,16 +401,20 @@ def cal_eer(fpr, tpr):
     return eer
 
 
-def compute_eer(loss_file,reverse,smoothing):
+def compute_eer(loss_file, reverse, smoothing):
     if not os.path.isdir(loss_file):
         loss_file_list = [loss_file]
     else:
         loss_file_list = os.listdir(loss_file)
-        loss_file_list = [os.path.join(loss_file, sub_loss_file) for sub_loss_file in loss_file_list]
+        loss_file_list = [
+            os.path.join(loss_file, sub_loss_file)
+            for sub_loss_file in loss_file_list
+        ]
 
     optimal_results = RecordResult(auc=np.inf)
     for sub_loss_file in loss_file_list:
-        dataset, scores, labels = get_scores_labels(sub_loss_file,reverse,smoothing)
+        dataset, scores, labels = get_scores_labels(sub_loss_file, reverse,
+                                                    smoothing)
         fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=0)
         eer = cal_eer(fpr, tpr)
 
@@ -388,12 +429,15 @@ def compute_eer(loss_file,reverse,smoothing):
     return optimal_results
 
 
-def compute_auc(loss_file,reverse,smoothing):
+def compute_auc(loss_file, reverse, smoothing):
     if not os.path.isdir(loss_file):
         loss_file_list = [loss_file]
     else:
         loss_file_list = os.listdir(loss_file)
-        loss_file_list = [os.path.join(loss_file, sub_loss_file) for sub_loss_file in loss_file_list]
+        loss_file_list = [
+            os.path.join(loss_file, sub_loss_file)
+            for sub_loss_file in loss_file_list
+        ]
 
     optimal_results = RecordResult()
     for sub_loss_file in loss_file_list:
@@ -410,7 +454,8 @@ def compute_auc(loss_file,reverse,smoothing):
             distance = psnr_records[i]
 
             if NORMALIZE:
-                distance=(distance-distance.min())/(distance.max()-distance.min()+1e-8)
+                distance = (distance - distance.min()) / (
+                    distance.max() - distance.min() + 1e-8)
                 # distance -= distance.min()  # distances = (distance - min) / (max - min)
                 # distance /= distance.max()
                 # for the score is anomaly score
@@ -419,8 +464,10 @@ def compute_auc(loss_file,reverse,smoothing):
             # to smooth the score
             if smoothing:
                 distance = score_smoothing(distance)
-            scores = np.concatenate((scores[:], distance[DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
-            labels = np.concatenate((labels[:], gt[i][DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
+            scores = np.concatenate(
+                (scores[:], distance[DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
+            labels = np.concatenate(
+                (labels[:], gt[i][DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
 
         fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=0)
         auc = metrics.auc(fpr, tpr)
@@ -435,36 +482,41 @@ def compute_auc(loss_file,reverse,smoothing):
     print('##### optimal result and model AUC= {}'.format(optimal_results))
     return optimal_results
 
-def compute_auc_average(loss_file,reverse,smoothing):
+
+def compute_auc_average(loss_file, reverse, smoothing):
     if not os.path.isdir(loss_file):
         loss_file_list = [loss_file]
     else:
         loss_file_list = os.listdir(loss_file)
-        loss_file_list = [os.path.join(loss_file, sub_loss_file) for sub_loss_file in loss_file_list]
+        loss_file_list = [
+            os.path.join(loss_file, sub_loss_file)
+            for sub_loss_file in loss_file_list
+        ]
 
     optimal_results = RecordResult()
     for sub_loss_file in loss_file_list:
         # the name of dataset, loss, and ground truth
         dataset, psnr_records, gt = load_psnr_gt(loss_file=sub_loss_file)
-        if dataset=='shanghaitech':
-            gt[51][5]=0
-        elif dataset=='ped2':
-            for i in range(7,11):
-                gt[i][0]=0
-        elif dataset=='ped1':
-            gt[13][0]=0
+        if dataset == 'shanghaitech':
+            gt[51][5] = 0
+        elif dataset == 'ped2':
+            for i in range(7, 11):
+                gt[i][0] = 0
+        elif dataset == 'ped1':
+            gt[13][0] = 0
         # the number of videos
         num_videos = len(psnr_records)
 
         scores = np.array([], dtype=np.float32)
         labels = np.array([], dtype=np.int8)
         # video normalization
-        auc=0
+        auc = 0
         for i in range(num_videos):
             distance = psnr_records[i]
 
             if NORMALIZE:
-                distance=(distance-distance.min())/(distance.max()-distance.min()+1e-8)
+                distance = (distance - distance.min()) / (
+                    distance.max() - distance.min() + 1e-8)
 
                 # distance -= distance.min()  # distances = (distance - min) / (max - min)
                 # distance /= distance.max()
@@ -479,11 +531,16 @@ def compute_auc_average(loss_file,reverse,smoothing):
 
             #_auc = metrics.roc_auc_score(np.array(gt[i],dtype=np.int8),np.array(distance,dtype=np.float32))
             #_auc = metrics.auc(fpr, tpr)
-            fpr, tpr, thresholds = metrics.roc_curve(np.array(gt[i],dtype=np.int8), np.array(distance,dtype=np.float32), pos_label=0)
+            fpr, tpr, thresholds = metrics.roc_curve(np.array(gt[i],
+                                                              dtype=np.int8),
+                                                     np.array(
+                                                         distance,
+                                                         dtype=np.float32),
+                                                     pos_label=0)
             _auc = metrics.auc(fpr, tpr)
-            print('video {}: auc is {}'.format(i+1,_auc))
-            auc+=_auc
-        auc/=num_videos
+            print('video {}: auc is {}'.format(i + 1, _auc))
+            auc += _auc
+        auc /= num_videos
         print(auc)
         #results = RecordResult(fpr, tpr, auc, dataset, sub_loss_file)
 
@@ -496,12 +553,15 @@ def compute_auc_average(loss_file,reverse,smoothing):
     # return optimal_results
 
 
-def average_psnr(loss_file,reverse):
+def average_psnr(loss_file, reverse):
     if not os.path.isdir(loss_file):
         loss_file_list = [loss_file]
     else:
         loss_file_list = os.listdir(loss_file)
-        loss_file_list = [os.path.join(loss_file, sub_loss_file) for sub_loss_file in loss_file_list]
+        loss_file_list = [
+            os.path.join(loss_file, sub_loss_file)
+            for sub_loss_file in loss_file_list
+        ]
 
     max_avg_psnr = -np.inf
     max_file = ''
@@ -515,11 +575,12 @@ def average_psnr(loss_file,reverse):
             max_file = file
         print('{}, average psnr = {}'.format(file, avg_psnr))
 
-    print('max average psnr file Averge Score = {}, psnr = {}'.format(max_file, max_avg_psnr))
+    print('max average psnr file Averge Score = {}, psnr = {}'.format(
+        max_file, max_avg_psnr))
 
 
-def calculate_psnr(loss_file,reverse,smoothing):
-    optical_result = compute_auc(loss_file,reverse,smoothing)
+def calculate_psnr(loss_file, reverse, smoothing):
+    optical_result = compute_auc(loss_file, reverse, smoothing)
     print('##### optimal result and model = {}'.format(optical_result))
 
     mean_psnr = []
@@ -533,20 +594,18 @@ def calculate_psnr(loss_file,reverse,smoothing):
         mean_normal_psnr = np.mean(psnr_records[gt == 0])
         mean_abnormal_psnr = np.mean(psnr_records[gt == 1])
         mean = np.mean(psnr_records)
-        print('mean normal psrn = {}, mean abnormal psrn = {}, mean = {}'.format(
-            mean_normal_psnr,
-            mean_abnormal_psnr,
-            mean)
-        )
+        print(
+            'mean normal psrn = {}, mean abnormal psrn = {}, mean = {}'.format(
+                mean_normal_psnr, mean_abnormal_psnr, mean))
         mean_psnr.append(mean)
     print('max mean psnr = {}'.format(np.max(mean_psnr)))
 
 
-def calculate_score(loss_file,reverse,smoothing):
+def calculate_score(loss_file, reverse, smoothing):
     if not os.path.isdir(loss_file):
         loss_file_path = loss_file
     else:
-        optical_result = compute_auc(loss_file,reverse,smoothing)
+        optical_result = compute_auc(loss_file, reverse, smoothing)
         loss_file_path = optical_result.loss_file
         print('##### optimal result and model = {}'.format(optical_result))
     dataset, psnr_records, gt = load_psnr_gt(loss_file=loss_file_path)
@@ -560,18 +619,22 @@ def calculate_score(loss_file,reverse,smoothing):
     for i in range(num_videos):
         distance = psnr_records[i]
 
-        distance = (distance - distance.min()) / (distance.max() - distance.min())
+        distance = (distance - distance.min()) / (distance.max() -
+                                                  distance.min())
         if reverse:
-            distance=1-distance
+            distance = 1 - distance
         if smoothing:
             distance = score_smoothing(distance)
-        scores = np.concatenate((scores[:], distance[DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
-        labels = np.concatenate((labels[:], gt[i][DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
+        scores = np.concatenate(
+            (scores[:], distance[DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
+        labels = np.concatenate(
+            (labels[:], gt[i][DECIDABLE_IDX:-DECIDABLE_IDX]), axis=0)
 
     mean_normal_scores = np.mean(scores[labels == 0])
     mean_abnormal_scores = np.mean(scores[labels == 1])
     print('mean normal scores = {}, mean abnormal scores = {}, '
-          'delta = {}'.format(mean_normal_scores, mean_abnormal_scores, mean_normal_scores - mean_abnormal_scores))
+          'delta = {}'.format(mean_normal_scores, mean_abnormal_scores,
+                              mean_normal_scores - mean_abnormal_scores))
 
 
 def test_func(*args):
@@ -584,10 +647,7 @@ def test_func(*args):
 
     num_videos = len(gt)
 
-    simulated_results = {
-        'dataset': dataset,
-        'psnr': []
-    }
+    simulated_results = {'dataset': dataset, 'psnr': []}
 
     simulated_psnr = []
     for i in range(num_videos):
@@ -624,14 +684,16 @@ def evaluate(eval_type, save_file):
     optimal_results = eval_func(save_file)
     return optimal_results
 
-def evaluate_all(path,reverse=True,smoothing=True):
-    result=compute_auc(path,reverse,smoothing)
-    average_psnr(path,reverse)
-    calculate_score(path,reverse,smoothing)
-    compute_eer(path,reverse,smoothing)
-    precision_recall_auc(path,reverse,smoothing)
-    compute_auc_average(path,reverse,smoothing)
+
+def evaluate_all(path, reverse=True, smoothing=True):
+    result = compute_auc(path, reverse, smoothing)
+    average_psnr(path, reverse)
+    calculate_score(path, reverse, smoothing)
+    compute_eer(path, reverse, smoothing)
+    precision_recall_auc(path, reverse, smoothing)
+    compute_auc_average(path, reverse, smoothing)
     return result
+
 
 if __name__ == '__main__':
     # compute_auc_average('/home/manning/autor_results/Ionescu_et_al_CVPR_2019_Avenue_results.pkl',reverse=True,smoothing=False)
