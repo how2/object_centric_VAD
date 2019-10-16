@@ -1,6 +1,36 @@
 import os
 # import sys
+"""
+example:
 
+data
+└── avenue
+workspace
+├── anomaly_scores
+│   └── avenue.pkl
+├── logs
+│   ├── avenue
+│   │   ├── events.out.tfevents.1571121305.cc-B250M-Gaming5
+│   └── log.txt
+├── models
+│   ├── CAE_avenue
+│   │   ├── avenue.ckpt.data-00000-of-00001
+│   │   ├── avenue.ckpt.index
+│   │   ├── avenue.ckpt.meta
+│   │   └── checkpoint
+│   ├── ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03
+│   │   ├── checkpoint
+│   │   ├── frozen_inference_graph.pb
+│   │   ├── model.ckpt.data-00000-of-00001
+│   │   ├── model.ckpt.index
+│   │   ├── model.ckpt.meta
+│   │   ├── pipeline.config
+│   │   └── saved_model
+│   │       ├── saved_model.pb
+│   │       └── variables
+│   └── svm
+│       └── avenue.m
+"""
 
 class Paths(object):
     # 组织项目用到的文件和目录
@@ -40,7 +70,7 @@ class Paths(object):
     def get_model_frozen_graph_path(self):
         ssd_frozen_graph_file = 'frozen_inference_graph.pb'
         return os.path.join(self.get_model_detection_dir_path(),
-                            ssd_frozen_graph_file())
+                            ssd_frozen_graph_file)
 
     def get_model_detection_label_path(self):
         return os.path.join(self.get_sample_root(),
@@ -53,7 +83,7 @@ class Paths(object):
         return os.path.join(self.get_model_dir_path(), 'CAE_')
 
     def get_anomaly_scores_pickle_path(self):
-        return os.path.join(self.get_workspace_dir_path, 'anomaly_scores')
+        return os.path.join(self.get_workspace_dir_path(), 'anomaly_scores')
 
 
 PATHS = Paths()

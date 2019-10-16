@@ -69,13 +69,28 @@ The framework include Three Parts:
  Training process includes 3 steps:
  1. extract the boxes of the dataset
  > python inference.py --gpu GPU --dataset avenue --dataset_folder YOUR_PATH_TO_FRAMES_FOLDER --frozen_graph YOUR_PATH_TO_OBJECT_DETECTION_MODEL_FROZEN_GRAPH --box_imgs_npy_path PATH_TO_STORE_FILE
+
+example:
+> python inference.py --gpu 0,1 --dataset avenue --dataset_folder data/avenue/training/frames/ --box_imgs_npy_path /home/cc/usr/object_centric_VAD/workspace/results/detection/imgs.npy
+
+> 
  2. train the CAEs
  > python train.py --gpu GPU --dataset avenue --train CAE --box_imgs_npy_path PATH_TO_STORE_FILE --dataset_folder YOUR_PATH_TO_FRAMES_FOLDER
+
+example:
+ > python train.py --gpu 0 --dataset avenue --train CAE --dataset_folder data/avenue/training/frames/ --box_imgs_npy_path workspace/results/detection/imgs.npy
+
  3. clustering and train the SVMs
   > python train.py --gpu GPU --dataset avenue --train SVM -box_imgs_npy_path PATH_TO_STORE_FILE --dataset_folder YOUR_PATH_TO_FRAMES_FOLDER --class_add True/False --norm 2/1/0
 
+  example:
+  > python train.py --gpu 0,1 --dataset avenue --train SVM --dataset_folder data/avenue/training/frames/ --box_imgs_npy_path workspace/results/detection/imgs.npy  --class_add False --norm 0 --model_dir workspace/models/CAE_avenue/
+
  ## Testing
  > python test.py --gpu GPU --dataset avenue --model_path YOUR_CAE_MODEL_PATH --dataset_folder YOUR_PATH_TO_FRAMES_FOLDER --svm_model YOUR_PATH_TO_SVM_MODEL --class_add True/False --norm 2/1/0 --graph_path PATH_TO_FROZEN_GRAPH 
+
+  example:
+  > python test.py --gpu 0,1 --dataset avenue --dataset_folder data/avenue/testing/frames/ --class_add False --norm 0 --model_path workspace/models/CAE_avenue/ --svm_model workspace/models/svm/avenue.m --graph_path workspace/models/ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03/frozen_inference_graph.pb
  
  ## Reference
  1. Tensorflow Object Detection API

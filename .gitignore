@@ -128,3 +128,7 @@ dmypy.json
 
 # data
 data/
+workspace/
+
+# protoc
+object_detection/protos/string_int_label_map_pb2.py

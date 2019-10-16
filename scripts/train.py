@@ -1,10 +1,10 @@
 import numpy as np
 import os
 import sys
-sys.path.append('../')
+
 import argparse
 import tensorflow as tf
-tf.logging.set_verbosity(tf.logging.DEBUG)
+
 import random
 from utils import util
 import sklearn.svm as svm
@@ -16,6 +16,9 @@ from sklearn.multiclass import OneVsRestClassifier
 
 from cyvlfeat.kmeans import kmeans, kmeans_quantize
 from utils.paths import PATHS
+
+sys.path.append('../')
+tf.logging.set_verbosity(tf.logging.DEBUG)
 
 summary_save_path_pre = PATHS.get_logs_dir_path()
 svm_save_dir = PATHS.get_model_svm_dir_path()
@@ -105,15 +108,16 @@ def train_CAE(path_boxes_np, args):
                                 shape=[batch_size, 64, 64, 1],
                                 name='back_batch')
 
-    # TODO：计算帧差的batch形式
-    # tf.image.image_gradients() 计算单张图片的x和y方向的梯度，与论文意思不一致
-    # 应修改为计算frame_{t} 和 frame_{t-3}及 frame_{t+3}的 帧差（absdiff）
+    # * tf.image.image_gradients() 计算单张图片的x和y方向的梯度，与论文意思不一致
+    # * 应修改为计算frame_{t} 和 frame_{t-3}及 frame_{t+3}的 帧差（absdiff）
 
-    grad1_x, grad1_y = tf.image.image_gradients(former_batch)
-    grad1 = tf.concat([grad1_x, grad1_y], axis=-1)
+    # grad1_x, grad1_y = tf.image.image_gradients(former_batch)
+    # grad1=tf.concat([grad1_x,grad1_y],axis=-1)
+    grad1 = tf.math.abs(tf.math.subtract(former_batch, gray_batch))
     # grad2_x,grad2_y=tf.image.image_gradients(gray_batch)
-    grad3_x, grad3_y = tf.image.image_gradients(back_batch)
-    grad3 = tf.concat([grad3_x, grad3_y], axis=-1)
+    # grad3_x, grad3_y = tf.image.image_gradients(back_batch)
+    # grad3=tf.concat([grad3_x,grad3_y],axis=-1)
+    grad3 = tf.math.abs(tf.math.subtract(back_batch, gray_batch))
 
     #grad_dis_1 = tf.sqrt(tf.square(grad1_x) + tf.square(grad1_y))
     #grad_dis_2 = tf.sqrt(tf.square(grad3_x) + tf.square(grad3_y))
@@ -160,11 +164,10 @@ def train_CAE(path_boxes_np, args):
 
     step = 0
     if not args.bn:
-        writer = tf.summary.FileWriter(logdir=summary_save_path_pre +
-                                       args.dataset)
+        logdir = f'{summary_save_path_pre}/{args.dataset}'
     else:
-        writer = tf.summary.FileWriter(logdir=summary_save_path_pre +
-                                       args.dataset + '_bn')
+        logdir = f'{summary_save_path_pre}/{args.dataset}_bn'
+    writer = tf.summary.FileWriter(logdir=logdir)
 
     tf.summary.scalar('loss/former_loss', former_loss)
     tf.summary.scalar('loss/gray_loss', gray_loss)
@@ -205,20 +208,18 @@ def train_CAE(path_boxes_np, args):
                         former_loss, gray_loss, back_loss
                     ],
                     feed_dict=feed_dict)
+                step_result = f'step{step}: lr={_lr:.4f}, fl={_former_loss:.4f}, gl={_gray_loss:.4f}, bl={_back_loss:.4f}'
                 if step % 10 == 0:
-                    print('At step {}'.format(step))
-                    print('\tLearning Rate {:.4f}'.format(_lr))
-                    print('\tFormer Loss {:.4f}'.format(_former_loss))
-                    print('\tGray Loss {:.4f}'.format(_gray_loss))
-                    print('\tBack Loss {:.4f}'.format(_back_loss))
+                    print(step_result)
 
                 if step % 50 == 0:
                     _summary = sess.run(summary_op, feed_dict=feed_dict)
                     writer.add_summary(_summary, global_step=step)
         if not args.bn:
-            saver.save(sess, model_save_path_pre + args.dataset)
+            ckpt_path = f'{model_save_path_pre}{args.dataset}/{args.dataset}.ckpt'
         else:
-            saver.save(sess, model_save_path_pre + args.dataset + '_bn')
+            ckpt_path = f'{model_save_path_pre}{args.dataset}_bn/{args.dataset}.ckpt'
+        saver.save(sess, ckpt_path)
 
         print('train finished!')
         sess.close()
@@ -240,11 +241,13 @@ def extract_features(path_boxes_np, CAE_model_path, args):
                                 shape=[1, 64, 64, 1],
                                 name='back_batch')
 
-    grad1_x, grad1_y = tf.image.image_gradients(former_batch)
-    grad1 = tf.concat([grad1_x, grad1_y], axis=-1)
+    # grad1_x, grad1_y = tf.image.image_gradients(former_batch)
+    # grad1=tf.concat([grad1_x,grad1_y],axis=-1)
+    grad1 = tf.math.abs(tf.math.subtract(former_batch, gray_batch))
     # grad2_x,grad2_y=tf.image.image_gradients(gray_batch)
-    grad3_x, grad3_y = tf.image.image_gradients(back_batch)
-    grad3 = tf.concat([grad3_x, grad3_y], axis=-1)
+    # grad3_x, grad3_y = tf.image.image_gradients(back_batch)
+    # grad3=tf.concat([grad3_x,grad3_y],axis=-1)
+    grad3 = tf.math.abs(tf.math.subtract(back_batch, gray_batch))
 
     #grad_dis_1 = tf.sqrt(tf.square(grad1_x) + tf.square(grad1_y))
     #grad_dis_2 = tf.sqrt(tf.square(grad3_x) + tf.square(grad3_y))
@@ -286,9 +289,12 @@ def extract_features(path_boxes_np, CAE_model_path, args):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         if args.bn:
-            restorer.restore(sess, CAE_model_path + '_bn')
+            # restorer.restore(sess, CAE_model_path+'_bn')
+            model_file = tf.train.latest_checkpoint(f'{CAE_model_path}_bn')
         else:
-            restorer.restore(sess, CAE_model_path)
+            # restorer.restore(sess,CAE_model_path)
+            model_file = tf.train.latest_checkpoint(CAE_model_path)
+        restorer.restore(sess, model_file)
         for i in range(iters):
             feed_dict = {
                 former_batch: np.expand_dims(f_imgs[i], 0),
@@ -349,7 +355,8 @@ def train_one_vs_rest_SVM(path_boxes_np, CAE_model_path, K, args):
 
     #clf=svm.LinearSVC(C=1.0,multi_class='ovr',max_iter=len(labels)*5,loss='hinge',)
     ovr_classifer.fit(data, sparse_labels)
-    joblib.dump(ovr_classifer, svm_save_dir + args.dataset + '.m')
+    svm_model_path = f'{svm_save_dir}/{args.dataset}.m'
+    joblib.dump(ovr_classifer, svm_model_path)
     print('train finished!')
 
 
@@ -429,8 +436,7 @@ if __name__ == '__main__':
         if not args.matlab:
             train_one_vs_rest_SVM(
                 args.box_imgs_npy_path,
-                os.path.join(args.model_dir,
-                             model_save_path_pre + args.dataset), 10, args)
+                args.model_dir, 10, args)
         else:
             matlab_train_one_vs_rest_SVM(
                 args.box_imgs_npy_path,

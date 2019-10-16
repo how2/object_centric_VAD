@@ -7,17 +7,13 @@ import pickle
 from sklearn import metrics
 import json
 from utils.util import score_smoothing
+from utils.paths import PATHS
 
 
 sys.path.append('../')
 
-DATA_DIR = '/data/jiachang/'
-if not os.path.exists(DATA_DIR):
-    DATA_DIR = '/data0/jiachang/'
-    if not os.path.exists(DATA_DIR):
-        DATA_DIR = '/home/manning/'
-    if not os.path.exists(DATA_DIR):
-        DATA_DIR = '../anotations/'
+DATA_DIR = PATHS.get_dataset_dir_path()
+
 
 # normalize scores in each sub video
 NORMALIZE = True
